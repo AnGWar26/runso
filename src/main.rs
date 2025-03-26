@@ -5,19 +5,24 @@ use std::os::raw::c_char;
 mod parse;
 
 fn main() {
-    // let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
 
+    let lib = &args[1];
+    let func = &args[2];
+    let func_args = args[3].split(",").collect::<Vec<&str>>();
+    let arg_types = args[4].split(",").collect::<Vec<&str>>();
+
+    //"/usr/lib64/libc.so.6", "strlen", "VICTORY", const char *s
     //TODO: error handle these
-    let ptr = open_lib("/usr/lib64/libc.so.6").unwrap();
-    let fn_handle = find_symbol(ptr, "strlen").unwrap();
+    let ptr = open_lib(lib).unwrap();
+    let fn_handle = find_symbol(ptr, func).unwrap();
 
-    call_func(fn_handle, "VICTORY");
+    call_func(fn_handle, func_args, arg_types);
 
-    if close_lib(ptr) == 0 {
-        println!("Library closed successfully")
-    } else {
-        println!("Something went wrong closing the library")
-    }
+    match close_lib(ptr) {
+        0 => println!("Library closed successfully"),
+        _ => println!("Something went wrong closing the library"),
+    };
 }
 
 /// Given a path to a .so, will retrieve the openhandle to it.
@@ -49,15 +54,15 @@ fn find_symbol(handle: *mut libc::c_void, func: &str) -> Result<*mut libc::c_voi
     }
 }
 
-fn call_func(fn_handle: *mut libc::c_void, args: &str) {
+fn call_func(fn_handle: *mut libc::c_void, args: Vec<&str>, arg_types: Vec<&str>) {
     unsafe {
         // hopefully I don't have to tell you this, but calling an unknown function in some random library
         // is incredibly dangerous. Be careful about what you call and with what parameters.
         // This is a good way to get your box exploited or to find undefined behavior.
         let func: unsafe extern "C" fn(...) -> usize = std::mem::transmute(fn_handle);
 
-        let zoo = parse::str_to_cstring(args);
-        let r = func(zoo);
+        let arg_tuple = parse::parse_to_ctypes(args, arg_types);
+        let r = func(arg_tuple);
 
         println!("{}", r);
     }
