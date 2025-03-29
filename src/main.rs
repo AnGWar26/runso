@@ -12,7 +12,7 @@ fn main() {
     let func_args = args[3].split(",").collect::<Vec<&str>>();
     let arg_types = args[4].split(",").collect::<Vec<&str>>();
 
-    //"/usr/lib64/libc.so.6", "strlen", "VICTORY", const char *s
+    //"/usr/lib64/libc.so.6", "strlen", "VICTORY", char *s
     //TODO: error handle these
     let ptr = open_lib(lib).unwrap();
     let fn_handle = find_symbol(ptr, func).unwrap();
@@ -61,8 +61,22 @@ fn call_func(fn_handle: *mut libc::c_void, args: Vec<&str>, arg_types: Vec<&str>
         // This is a good way to get your box exploited or to find undefined behavior.
         let func: unsafe extern "C" fn(...) -> usize = std::mem::transmute(fn_handle);
 
-        let arg_tuple = parse::parse_to_ctypes(args, arg_types);
-        let r = func(arg_tuple);
+        let parsed_args: Vec<parse::CTypes> = parse::parse_to_ctypes(args, arg_types).unwrap();
+
+        let r = match parsed_args.len() {
+            0 => func(),
+            1 => func(&parsed_args[0].clone().unwrap_ctype()),
+            2 => func(
+                &parsed_args[0].clone().unwrap_ctype(),
+                &parsed_args[1].clone().unwrap_ctype(),
+            ),
+            3 => func(
+                &parsed_args[0].clone().unwrap_ctype(),
+                &parsed_args[1].clone().unwrap_ctype(),
+                &parsed_args[2].clone().unwrap_ctype(),
+            ),
+            _ => todo!(),
+        };
 
         println!("{}", r);
     }
